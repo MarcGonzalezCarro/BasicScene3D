@@ -185,52 +185,34 @@ Matrix4x4 Matrix4x4::Rotate(const Quat& q)
 
 Matrix4x4 Matrix4x4::FromTRS(const Vec3& t, const Matrix3x3& R, const Vec3& s)
 {
-    Matrix4x4 M;
+    Matrix4x4 M = Matrix4x4::Identity();
 
-    M.At(0, 0) = s.x;
-    M.At(0, 1) = R.At(0, 1);
-    M.At(0, 2) = R.At(0, 2);
+    
+    M.At(0, 0) = R.At(0, 0) * s.x;
+    M.At(1, 0) = R.At(1, 0) * s.x;
+    M.At(2, 0) = R.At(2, 0) * s.x;
+
+    
+    M.At(0, 1) = R.At(0, 1) * s.y;
+    M.At(1, 1) = R.At(1, 1) * s.y;
+    M.At(2, 1) = R.At(2, 1) * s.y;
+
+    
+    M.At(0, 2) = R.At(0, 2) * s.z;
+    M.At(1, 2) = R.At(1, 2) * s.z;
+    M.At(2, 2) = R.At(2, 2) * s.z;
+
+    
     M.At(0, 3) = t.x;
-    M.At(1, 0) = R.At(1, 0);
-    M.At(1, 1) = s.y;
-    M.At(1, 2) = R.At(1, 2);
     M.At(1, 3) = t.y;
-    M.At(2, 0) = R.At(2, 0);
-    M.At(2, 1) = R.At(2, 1);
-    M.At(2, 2) = s.x;
     M.At(2, 3) = t.z;
-    M.At(3, 0) = 0;
-    M.At(3, 1) = 0;
-    M.At(3, 2) = 0;
-    M.At(3, 3) = 1;
+
     return M;
 }
 
 Matrix4x4 Matrix4x4::FromTRS(const Vec3& t, const Quat& q, const Vec3& s)
 {
-    Matrix4x4 M;
-    Matrix3x3 R;
-
-    R = q.ToMatrix3x3();
-
-    M.At(0, 0) = s.x;
-    M.At(0, 1) = R.At(0, 1);
-    M.At(0, 2) = R.At(0, 2);
-    M.At(0, 3) = t.x;
-    M.At(1, 0) = R.At(1, 0);
-    M.At(1, 1) = s.y;
-    M.At(1, 2) = R.At(1, 2);
-    M.At(1, 3) = t.y;
-    M.At(2, 0) = R.At(2, 0);
-    M.At(2, 1) = R.At(2, 1);
-    M.At(2, 2) = s.z;
-    M.At(2, 3) = t.z;
-    M.At(3, 0) = 0;
-    M.At(3, 1) = 0;
-    M.At(3, 2) = 0;
-    M.At(3, 3) = 1;
-
-    return M;
+    return FromTRS(t, q.ToMatrix3x3(), s);
 }
 
 Matrix4x4 Matrix4x4::InverseTR() const
@@ -418,3 +400,21 @@ void Matrix4x4::SetRotationScale(const Matrix3x3& RS)
     At(2, 2) = RS.At(2, 2);
 }
 
+Matrix4x4 Matrix4x4::Perspective(double left, double right, double bottom, double top, double nearPlane, double farPlane)
+{
+    Matrix4x4 M{};
+
+    M.At(0, 0) = (2.0 * nearPlane) / (right - left);
+    M.At(1, 1) = (2.0 * nearPlane) / (top - bottom);
+
+    M.At(0, 2) = (right + left) / (right - left);
+    M.At(1, 2) = (top + bottom) / (top - bottom);
+
+    M.At(2, 2) = -(farPlane + nearPlane) / (farPlane - nearPlane);
+    M.At(2, 3) = -(2.0 * farPlane * nearPlane) / (farPlane - nearPlane);
+
+    M.At(3, 2) = -1.0;
+    M.At(3, 3) = 0.0;
+
+    return M;
+}

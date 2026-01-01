@@ -17,6 +17,7 @@ struct Matrix4x4
     // Row-major: m[row * 4 + col]
     double m[16] = { 0 };
 
+    static Matrix4x4 Perspective(double left, double right, double bottom, double top, double nearPlane, double farPlane);
     static Matrix4x4 Identity();
     double& At(std::size_t i, std::size_t j) { return m[i * 4 + j]; }
     double  At(std::size_t i, std::size_t j) const { return m[i * 4 + j]; }
