@@ -20,6 +20,21 @@
 #include "GameObject.hpp"
 #include "Camera.hpp"
 
+float cameraSpeed = 5.0f;
+Uint64 lastTicks = 0;
+
+bool keyW = false;
+bool keyA = false;
+bool keyS = false;
+bool keyD = false;
+bool keyQ = false;
+bool keyE = false;
+
+bool rightMousePressed = false;
+int lastMouseX = 0;
+int lastMouseY = 0;
+
+float mouseSensitivity = 0.0025f;
 // -----------------------------------------------------------------------------
 // HELPER: Càrrega de fitxers de text (per Shaders)
 // -----------------------------------------------------------------------------
@@ -95,7 +110,7 @@ void DrawHierarchyNode(GameObject* node) {
 
     bool hasChildren = !node->children.empty();
 
-	//TODO: Si l'objecte no té fills (leaf), fer servir aquest codi:
+    //TODO: Si l'objecte no té fills (leaf), fer servir aquest codi:
     if (!hasChildren)
     {
         flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
@@ -194,15 +209,99 @@ int main(int argc, char** argv) {
 
     //TODO: Inicialitzar la càmera
 
-	// 5. Loop Principal
+    // 5. Loop Principal
     bool running = true;
+    lastTicks = SDL_GetTicks();
     while (running) {
+
+        Uint64 currentTicks = SDL_GetTicks();
+        float deltaTime = (currentTicks - lastTicks) / 1000.0f;
+        lastTicks = currentTicks;
+
+        Vec3 forward = mainCamera.transform.rotation.Rotate({ 0, 0, -1 });
+        Vec3 right = mainCamera.transform.rotation.Rotate({ 1, 0, 0 });
+        Vec3 up = { 0, 1, 0 };
+
         // --- INPUT ---
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT) running = false;
             if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window)) running = false;
+            if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP)
+            {
+                bool pressed = (event.type == SDL_EVENT_KEY_DOWN);
+
+                switch (event.key.key)
+                {
+                case 'w': keyW = pressed; break;
+                case 'a': keyA = pressed; break;
+                case 's': keyS = pressed; break;
+                case 'd': keyD = pressed; break;
+                case 'q': keyQ = pressed; break;
+                case 'e': keyE = pressed; break;
+                default: break;
+                }
+            }
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
+                event.button.button == SDL_BUTTON_RIGHT)
+            {
+                rightMousePressed = true;
+                lastMouseX = event.button.x;
+                lastMouseY = event.button.y;
+            }
+
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_UP &&
+                event.button.button == SDL_BUTTON_RIGHT)
+            {
+                rightMousePressed = false;
+            }
+            if (event.type == SDL_EVENT_MOUSE_MOTION && rightMousePressed)
+            {
+                int dx = event.motion.x - lastMouseX;
+                int dy = event.motion.y - lastMouseY;
+
+                lastMouseX = event.motion.x;
+                lastMouseY = event.motion.y;
+
+                double yaw = -dx * mouseSensitivity;
+                double pitch = -dy * mouseSensitivity;
+
+
+                Quat qYaw = Quat::FromAxisAngle({ 0, 1, 0 }, yaw);
+
+
+                Vec3 right = mainCamera.transform.rotation.Rotate({ 1, 0, 0 });
+
+
+                Quat qPitch = Quat::FromAxisAngle(right, pitch);
+
+
+                mainCamera.transform.rotation = qYaw * qPitch * mainCamera.transform.rotation;
+
+                mainCamera.transform.rotation = mainCamera.transform.rotation.Normalized();
+            }
+        }
+
+        Vec3 movement = { 0, 0, 0 };
+
+        if (keyW) movement.z -= 1.0;
+        if (keyS) movement.z += 1.0;
+        if (keyA) movement.x -= 1.0;
+        if (keyD) movement.x += 1.0;
+        if (keyE) movement.y += 1.0;
+        if (keyQ) movement.y -= 1.0;
+
+        if (movement.Norm() > 0.0)
+        {
+            movement = movement.Normalize();
+
+            // Movimiento en espacio local de la cámara
+            Vec3 worldMove = mainCamera.transform.rotation.Rotate(movement);
+
+            mainCamera.transform.position.x += worldMove.x * cameraSpeed * deltaTime;
+            mainCamera.transform.position.y += worldMove.y * cameraSpeed * deltaTime;
+            mainCamera.transform.position.z += worldMove.z * cameraSpeed * deltaTime;
         }
 
         // --- UPDATE UI ---
@@ -212,9 +311,9 @@ int main(int argc, char** argv) {
 
         // UI: Jerarquia
         ImGui::Begin("Hierarchy");
-        if (ImGui::Button("Add Object to Root")) 
+        if (ImGui::Button("Add Object to Root"))
         {
-			//TODO: Afegir un nou GameObject a l'arrel de l'escena
+            //TODO: Afegir un nou GameObject a l'arrel de l'escena
             GameObject* obj = new GameObject("GameObject");
             obj->name = "GameObject";
             sceneRoots.push_back(obj);
@@ -230,31 +329,31 @@ int main(int argc, char** argv) {
             ImGui::Separator();
 
             // TODO: Agafar la posició del selectedObject
-			float pos[3] = {(float)selectedObject->transform.position.x, (float)selectedObject->transform.position.y, (float)selectedObject->transform.position.z }; 
+            float pos[3] = { (float)selectedObject->transform.position.x, (float)selectedObject->transform.position.y, (float)selectedObject->transform.position.z };
             if (ImGui::DragFloat3("Position", pos, 0.1f))
             {
-				//TODO: Actualitzar la posició del selectedObject
+                //TODO: Actualitzar la posició del selectedObject
                 selectedObject->transform.position = { pos[0], pos[1], pos[2] };
             }
             // TODO: Agafar la rotació del selectedObject
-			float rot[3] = {(float)selectedObject->transform.eulerRotation.x, (float)selectedObject->transform.eulerRotation.y, (float)selectedObject->transform.eulerRotation.z}; 
+            float rot[3] = { (float)selectedObject->transform.eulerRotation.x, (float)selectedObject->transform.eulerRotation.y, (float)selectedObject->transform.eulerRotation.z };
             if (ImGui::DragFloat3("Rotation (Euler)", rot, 0.5f))
             {
-				// TODO: Actualitzar la rotació del selectedObject
+                // TODO: Actualitzar la rotació del selectedObject
                 selectedObject->transform.SetEulerRotation({ rot[0], rot[1], rot[2] });
             }
             // TODO: Agafar l'escala del selectedObject
-			float scl[3] = {(float)selectedObject->transform.scale.x, (float)selectedObject->transform.scale.y, (float)selectedObject->transform.scale.z}; 
+            float scl[3] = { (float)selectedObject->transform.scale.x, (float)selectedObject->transform.scale.y, (float)selectedObject->transform.scale.z };
             if (ImGui::DragFloat3("Scale", scl, 0.1f))
             {
-				// TODO: Actualitzar l'escala del selectedObject
+                // TODO: Actualitzar l'escala del selectedObject
                 selectedObject->transform.scale = { scl[0], scl[1], scl[2] };
             }
 
             ImGui::Separator();
-            if (ImGui::Button("Add Child")) 
+            if (ImGui::Button("Add Child"))
             {
-				// TODO: Afegir un nou GameObject com a fill del selectedObject
+                // TODO: Afegir un nou GameObject com a fill del selectedObject
                 GameObject* child = new GameObject("Child");
                 child->name = "Child";
                 selectedObject->AddChild(child);
@@ -267,15 +366,15 @@ int main(int argc, char** argv) {
 
         // UI: Camera
         ImGui::Begin("Camera Settings");
-		float fov = (float)(mainCamera.fovHorizontal * 180.0 / 3.1415926535); // TODO: Agafar el FOV de la càmera
+        float fov = (float)(mainCamera.fovHorizontal * 180.0 / 3.1415926535); // TODO: Agafar el FOV de la càmera
         if (ImGui::SliderFloat("FOV (Y)", &fov, 10.0f, 170.0f))
         {
-			// TODO: Actualitzar el FOV de la càmera
+            // TODO: Actualitzar el FOV de la càmera
             mainCamera.fovHorizontal = fov * 3.1415926535 / 180.0;
         }
 
         // TODO: Agafar near i far de la càmera
-		float nearP = (float)mainCamera.nearPlane; 
+        float nearP = (float)mainCamera.nearPlane;
         float farP = (float)mainCamera.farPlane;
 
         // TODO: Actualitzar near i far de la càmera si canvien
@@ -284,13 +383,13 @@ int main(int argc, char** argv) {
 
         if (ImGui::DragFloat("Far Plane", &farP, 1.0f, nearP + 0.1f, 500.0f))
             mainCamera.farPlane = farP;
-        
+
         ImGui::Separator();
         ImGui::Text("Camera Transform");
-		float cPos[3] = { (float)mainCamera.transform.position.x,(float)mainCamera.transform.position.y,(float)mainCamera.transform.position.z }; // TODO: Agafar la posició de la càmera
+        float cPos[3] = { (float)mainCamera.transform.position.x,(float)mainCamera.transform.position.y,(float)mainCamera.transform.position.z }; // TODO: Agafar la posició de la càmera
         if (ImGui::DragFloat3("Pos", cPos, 0.1f))
         {
-			// TODO: Actualitzar la posició de la càmera
+            // TODO: Actualitzar la posició de la càmera
             mainCamera.transform.position = { cPos[0], cPos[1], cPos[2] };
         }
         ImGui::End();
@@ -301,7 +400,7 @@ int main(int argc, char** argv) {
         glViewport(0, 0, w, h);
         if (h > 0)
         {
-			// TODO: Actualitzar aspect ratio de la càmera
+            // TODO: Actualitzar aspect ratio de la càmera
             mainCamera.aspectRatio = (double)w / (double)h;
         }
 
@@ -315,7 +414,7 @@ int main(int argc, char** argv) {
             Matrix4x4 view = mainCamera.GetViewMatrix();
             Matrix4x4 proj = mainCamera.GetProjectionMatrix();
 
-			// TODO: Recorregut de l'escena i renderitzat (RenderNode)
+            // TODO: Recorregut de l'escena i renderitzat (RenderNode)
             for (GameObject* root : sceneRoots)
                 RenderNode(root, shaderProgram, view, proj, cubeMesh);
         }
